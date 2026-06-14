@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     discord_token: str = Field(..., validation_alias="DISCORD_TOKEN")
     gemini_api_key: str = Field(default="", validation_alias="GEMINI_API_KEY")
-    database_url: str = Field(default="sqlite+aiosqlite:///data/cphub.db", validation_alias="DATABASE_URL")
+    database_url: str = Field(default="postgresql+asyncpg://cphub:cphub@localhost:5432/cphub", validation_alias="DATABASE_URL")
 
 
 settings = Settings()

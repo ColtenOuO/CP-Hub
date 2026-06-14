@@ -3,7 +3,7 @@ from discord.ext import commands
 from google import genai
 from google.genai import types
 
-from bot.config import settings
+from backend.app.core.config import settings
 
 
 class MentionChat(commands.Cog):

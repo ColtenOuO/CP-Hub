@@ -45,3 +45,13 @@ async def test_draw_random_problem_invalid_tag(leetcode_service):
 
     with pytest.raises(ValueError):
         await leetcode_service.draw_random_problem(tags=invalid_tags, difficulty=difficulty)
+
+
+@pytest.mark.asyncio
+async def test_user_exists_for_real_user(leetcode_service):
+    assert await leetcode_service.user_exists("neal_wu") is True
+
+
+@pytest.mark.asyncio
+async def test_user_exists_for_nonexistent_user(leetcode_service):
+    assert await leetcode_service.user_exists("this-user-definitely-does-not-exist-12345") is False

@@ -11,6 +11,25 @@ jobs:
     name: Run Pytest
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cphub
+          POSTGRES_PASSWORD: cphub
+          POSTGRES_DB: cphub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cphub"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DISCORD_TOKEN: dummy-token-for-ci
+      DATABASE_URL: postgresql+asyncpg://cphub:cphub@localhost:5432/cphub
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,6 +42,9 @@ jobs:
 
       - name: Set up Python
         run: uv python install
+
+      - name: Run Database Migrations
+        run: uv run alembic upgrade head
 
       - name: Run Unit Tests
         run: uv run pytest

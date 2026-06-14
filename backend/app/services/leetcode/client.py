@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 
 import httpx
 
-from backend.app.services.leetcode.queries import LEETCODE_PROBLEM_LIST_QUERY
+from backend.app.services.leetcode.queries import LEETCODE_PROBLEM_LIST_QUERY, LEETCODE_USER_PROFILE_QUERY
 
 
 class LeetCodeService:
@@ -71,6 +71,30 @@ class LeetCodeService:
 
             except httpx.RequestError as exc:
                 raise RuntimeError(f"Error occurred while fetching problem list: {exc}")
+
+    async def user_exists(self, username: str) -> bool:
+        """Checks whether a LeetCode account with the given username exists."""
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    self.graphql_url,
+                    json={"query": LEETCODE_USER_PROFILE_QUERY, "variables": {"username": username}},
+                    headers=self.headers,
+                    timeout=10.0,
+                )
+
+                if response.status_code != 200:
+                    raise httpx.HTTPStatusError(
+                        f"LeetCode server returned error: {response.status_code}",
+                        request=response.request,
+                        response=response,
+                    )
+
+                data = response.json()
+                return (data.get("data") or {}).get("matchedUser") is not None
+
+            except httpx.RequestError as exc:
+                raise RuntimeError(f"Error occurred while checking LeetCode user: {exc}")
 
     async def draw_random_problem(self, tags: List[str], difficulty: str) -> Dict[str, Any]:
         """Draws a random LeetCode problem based on specified tags and difficulty, ensuring it's free to access."""

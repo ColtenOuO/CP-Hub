@@ -14,3 +14,12 @@ query problemsetQuestionListV2($categorySlug: String, $limit: Int, $filters: Que
   }
 }
 """
+
+# Check whether a LeetCode account with the given username exists
+LEETCODE_USER_PROFILE_QUERY = """
+query getUserProfile($username: String!) {
+  matchedUser(username: $username) {
+    username
+  }
+}
+"""

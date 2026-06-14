@@ -51,6 +51,9 @@ async def setup_hook():
 
     print(f"{Color.GREEN}All modules loaded dynamically, bot is ready!{Color.RESET}")
 
+    synced = await bot.tree.sync()
+    print(f"{Color.GREEN}[System] Synced {len(synced)} slash command(s).{Color.RESET}")
+
 
 async def main():
     async with bot:

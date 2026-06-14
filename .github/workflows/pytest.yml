@@ -1,0 +1,28 @@
+name: Python Unit Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  pytest:
+    name: Run Pytest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Run Unit Tests
+        run: uv run pytest

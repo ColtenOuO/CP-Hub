@@ -21,5 +21,13 @@ ignore = []
 
 [dependency-groups]
 dev = [
+    "pytest>=9.1.0",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.15.17",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+pythonpath = ["."]

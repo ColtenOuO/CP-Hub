@@ -2,6 +2,7 @@
   {
     "id": 1,
     "name": "初心者之路",
+    "requires": [],
     "problems": [
       {
         "url": "https://leetcode.com/problems/two-sum/",
@@ -27,6 +28,7 @@
   {
     "id": 2,
     "name": "中級挑戰",
+    "requires": [1],
     "problems": [
       {
         "url": "https://leetcode.com/problems/binary-search/",

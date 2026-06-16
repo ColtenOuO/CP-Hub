@@ -16,6 +16,7 @@ class UserStats(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), unique=True)
     level: Mapped[int] = mapped_column(default=1)
+    exp: Mapped[int] = mapped_column(default=0)
     coins: Mapped[int] = mapped_column(default=0)
 
     user: Mapped["User"] = relationship(back_populates="stats")

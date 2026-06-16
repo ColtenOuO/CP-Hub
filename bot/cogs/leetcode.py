@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import discord
 from discord import app_commands
@@ -6,7 +7,7 @@ from discord.ext import commands
 
 from backend.app.services.leetcode.client import LeetCodeService
 
-SOLUTION_THUMBNAIL_PATH = Path(__file__).resolve().parent.parent.parent / "static" / "images" / "solution.png"
+SOLUTION_THUMBNAIL_PATH = Path(__file__).resolve().parent.parent.parent / "static" / "images" / "LeetCode_logo_black.png"
 
 
 class LeetCodeBot(commands.Cog):
@@ -41,21 +42,22 @@ class LeetCodeBot(commands.Cog):
             app_commands.Choice(name="Math (數學題)", value="math"),
         ],
     )
-    async def draw_problem(self, interaction: discord.Interaction, difficulty: app_commands.Choice[str], tag: app_commands.Choice[str]):
+    async def draw_problem(self, interaction: discord.Interaction, difficulty: app_commands.Choice[str], tag: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer()
         try:
-            problem = await self.leetcode_service.draw_random_problem(tags=[tag.value], difficulty=difficulty.value)
+            tags = [tag.value] if tag else []
+            problem = await self.leetcode_service.draw_random_problem(tags=tags, difficulty=difficulty.value)
 
             color_map = {"EASY": discord.Color.green(), "MEDIUM": discord.Color.orange(), "HARD": discord.Color.red()}
             card_color = color_map.get(difficulty.value, discord.Color.blue())
             embed = discord.Embed(title=f"{problem['title']}", url=problem["url"], color=card_color)
-            embed.set_thumbnail(url="attachment://solution.png")
+            embed.set_thumbnail(url="attachment://LeetCode_logo_black.png")
             embed.add_field(name="題目編號", value=problem["questionFrontendId"], inline=True)
             embed.add_field(name="難度", value=difficulty.name, inline=True)
-            embed.add_field(name="分類標籤", value=tag.name, inline=True)
+            embed.add_field(name="分類標籤", value="||" + tag.name + "||" if tag else "不限", inline=True)
             embed.add_field(name="抽題者", value=interaction.user.mention, inline=True)
 
-            file = discord.File(SOLUTION_THUMBNAIL_PATH, filename="solution.png")
+            file = discord.File(SOLUTION_THUMBNAIL_PATH, filename="LeetCode_logo_black.png")
             await interaction.followup.send(embed=embed, file=file)
         except Exception as exc:
             await interaction.followup.send(f"抽題失敗：{exc}")

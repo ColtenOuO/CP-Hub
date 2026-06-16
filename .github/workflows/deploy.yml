@@ -1,0 +1,125 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy:
+    name: Deploy & Notify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          cat >> ~/.ssh/config << EOF
+          Host ${{ secrets.VPS_HOST }}
+            ProxyCommand cloudflared access ssh --hostname %h
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+          EOF
+
+      - name: SSH Deploy
+        env:
+          CF_Access_Client_Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_Access_Client_Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "cd /home/colten/CP-Hub && git pull origin main && docker compose up --build -d"
+
+      - name: Notify Discord (success)
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}
+          COMMIT_AUTHOR: ${{ github.event.head_commit.author.name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          ACTOR_AVATAR: ${{ github.event.head_commit.author.avatar_url }}
+        run: |
+          COMMIT_SHORT="${GITHUB_SHA:0:7}"
+          COMMIT_URL="https://github.com/${{ github.repository }}/commit/$GITHUB_SHA"
+          REPO_URL="https://github.com/${{ github.repository }}"
+          ACTIONS_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          PAYLOAD=$(jq -n \
+            --arg commit "$COMMIT_SHORT" \
+            --arg commit_url "$COMMIT_URL" \
+            --arg repo_url "$REPO_URL" \
+            --arg actions_url "$ACTIONS_URL" \
+            --arg author "$COMMIT_AUTHOR" \
+            --arg msg "$COMMIT_MESSAGE" \
+            --arg branch "${{ github.ref_name }}" \
+            --arg repo "${{ github.repository }}" \
+            --arg run_num "${{ github.run_number }}" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              embeds: [{
+                title: "✅ Deployment Successful",
+                url: $actions_url,
+                color: 5763719,
+                fields: [
+                  {name: "📦 Commit", value: ("`" + $commit + "` [→ View](" + $commit_url + ")"), inline: true},
+                  {name: "👤 Author", value: $author, inline: true},
+                  {name: "🌿 Branch", value: ("`" + $branch + "`"), inline: true},
+                  {name: "📝 Message", value: $msg}
+                ],
+                footer: {text: ($repo + "  •  Run #" + $run_num)},
+                timestamp: $ts
+              }]
+            }')
+
+          curl -fsSL -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
+
+      - name: Notify Discord (failure)
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}
+          COMMIT_AUTHOR: ${{ github.event.head_commit.author.name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          COMMIT_SHORT="${GITHUB_SHA:0:7}"
+          COMMIT_URL="https://github.com/${{ github.repository }}/commit/$GITHUB_SHA"
+          ACTIONS_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          PAYLOAD=$(jq -n \
+            --arg commit "$COMMIT_SHORT" \
+            --arg commit_url "$COMMIT_URL" \
+            --arg actions_url "$ACTIONS_URL" \
+            --arg author "$COMMIT_AUTHOR" \
+            --arg msg "$COMMIT_MESSAGE" \
+            --arg branch "${{ github.ref_name }}" \
+            --arg repo "${{ github.repository }}" \
+            --arg run_num "${{ github.run_number }}" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              embeds: [{
+                title: "❌ Deployment Failed",
+                url: $actions_url,
+                color: 15548997,
+                description: "Click the title to view the failed run log.",
+                fields: [
+                  {name: "📦 Commit", value: ("`" + $commit + "` [→ View](" + $commit_url + ")"), inline: true},
+                  {name: "👤 Author", value: $author, inline: true},
+                  {name: "🌿 Branch", value: ("`" + $branch + "`"), inline: true},
+                  {name: "📝 Message", value: $msg}
+                ],
+                footer: {text: ($repo + "  •  Run #" + $run_num)},
+                timestamp: $ts
+              }]
+            }')
+
+          curl -fsSL -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"

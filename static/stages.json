@@ -1,0 +1,52 @@
+[
+  {
+    "id": 1,
+    "name": "初心者之路",
+    "problems": [
+      {
+        "url": "https://leetcode.com/problems/two-sum/",
+        "title": "Two Sum",
+        "platform": "leetcode",
+        "rewards": { "exp": 50, "coins": 25 }
+      },
+      {
+        "url": "https://leetcode.com/problems/valid-parentheses/",
+        "title": "Valid Parentheses",
+        "platform": "leetcode",
+        "rewards": { "exp": 50, "coins": 25 }
+      },
+      {
+        "url": "https://leetcode.com/problems/climbing-stairs/",
+        "title": "Climbing Stairs",
+        "platform": "leetcode",
+        "rewards": { "exp": 75, "coins": 35 }
+      }
+    ],
+    "rewards": { "exp": 200, "coins": 100 }
+  },
+  {
+    "id": 2,
+    "name": "中級挑戰",
+    "problems": [
+      {
+        "url": "https://leetcode.com/problems/binary-search/",
+        "title": "Binary Search",
+        "platform": "leetcode",
+        "rewards": { "exp": 75, "coins": 35 }
+      },
+      {
+        "url": "https://leetcode.com/problems/3sum/",
+        "title": "3Sum",
+        "platform": "leetcode",
+        "rewards": { "exp": 150, "coins": 75 }
+      },
+      {
+        "url": "https://leetcode.com/problems/longest-substring-without-repeating-characters/",
+        "title": "Longest Substring Without Repeating Characters",
+        "platform": "leetcode",
+        "rewards": { "exp": 150, "coins": 75 }
+      }
+    ],
+    "rewards": { "exp": 400, "coins": 200 }
+  }
+]

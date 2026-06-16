@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.core.db import Base
 
 if TYPE_CHECKING:
+    from backend.app.models.user_stage_progress import UserStageProgress
     from backend.app.models.user_stats import UserStats
 
 
@@ -21,3 +22,4 @@ class User(Base):
     codeforces_id: Mapped[str | None] = mapped_column(String(32), unique=True)
 
     stats: Mapped["UserStats"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
+    stage_progress: Mapped[list["UserStageProgress"]] = relationship(back_populates="user", cascade="all, delete-orphan")

@@ -8,4 +8,6 @@ COPY . .
 
 RUN uv sync --frozen --no-dev
 
-CMD ["uv", "run", "python", "-m", "bot.main"]
+RUN chmod +x entrypoint.sh
+
+CMD ["./entrypoint.sh"]

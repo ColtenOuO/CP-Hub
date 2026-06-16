@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     discord_token: str = Field(..., validation_alias="DISCORD_TOKEN")
     gemini_api_key: str = Field(default="", validation_alias="GEMINI_API_KEY")
     database_url: str = Field(default="postgresql+asyncpg://cphub:cphub@localhost:5432/cphub", validation_alias="DATABASE_URL")
+    admin_discord_ids: list[int] = Field(default=[], validation_alias="ADMIN_DISCORD_IDS")
+
+    @field_validator("admin_discord_ids", mode="before")
+    @classmethod
+    def parse_admin_ids(cls, v: object) -> list[int]:
+        if isinstance(v, str):
+            return [int(x.strip()) for x in v.split(",") if x.strip()]
+        return v  # type: ignore[return-value]
 
 
 settings = Settings()

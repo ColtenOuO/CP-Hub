@@ -75,9 +75,12 @@ class VerifyView(discord.ui.View):
         await interaction.followup.send("\n".join(lines), ephemeral=True)
 
 
+_admin_group = app_commands.Group(name="admin", description="關卡管理（限管理員）")
+
+
 class StageCog(commands.Cog):
     stage_group = app_commands.Group(name="stage", description="關卡挑戰系統")
-    admin_group = app_commands.Group(name="admin", description="關卡管理（限管理員）", parent=stage_group)
+    stage_group.add_command(_admin_group)  # child of stage_group, not a class attribute
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -158,7 +161,7 @@ class StageCog(commands.Cog):
             rewards = stage["rewards"]
             embed.add_field(
                 name=f"#{stage['id']} {stage['name']}",
-                value=f"{status}\n完關獎勵：{rewards['exp']} EXP / {rewards['coins']} 金幣\n題數：{len(stage['problems'])} 題",
+                value=f"{status}\n完成通關獎勵：{rewards['exp']} EXP / {rewards['coins']} 金幣\n題數：{len(stage['problems'])} 題",
                 inline=False,
             )
 
@@ -263,7 +266,7 @@ class StageCog(commands.Cog):
 
     # ── Admin commands ─────────────────────────────────────────────────────
 
-    @admin_group.command(name="create", description="新增關卡")
+    @_admin_group.command(name="create", description="新增關卡")
     @app_commands.describe(name="關卡名稱", rewards_exp="完成關卡 EXP 獎勵", rewards_coins="完成關卡金幣獎勵")
     async def admin_create(self, interaction: discord.Interaction, name: str, rewards_exp: int, rewards_coins: int):
         if not _is_admin(interaction.user.id):
@@ -274,7 +277,7 @@ class StageCog(commands.Cog):
             stage = await stage_def_crud.create_stage(session, name, rewards_exp, rewards_coins)
         await interaction.followup.send(f"關卡「**{stage.name}**」建立成功（ID: `{stage.id}`）。", ephemeral=True)
 
-    @admin_group.command(name="delete", description="刪除關卡")
+    @_admin_group.command(name="delete", description="刪除關卡")
     @app_commands.describe(stage_id="要刪除的關卡 ID")
     async def admin_delete(self, interaction: discord.Interaction, stage_id: int):
         if not _is_admin(interaction.user.id):
@@ -288,7 +291,7 @@ class StageCog(commands.Cog):
         else:
             await interaction.followup.send(f"關卡 `{stage_id}` 已刪除。", ephemeral=True)
 
-    @admin_group.command(name="requires", description="設定關卡的前置依賴")
+    @_admin_group.command(name="requires", description="設定關卡的前置依賴")
     @app_commands.describe(stage_id="關卡 ID", required_ids="前置關卡 ID，以逗號分隔（留空代表無依賴關係）")
     async def admin_requires(self, interaction: discord.Interaction, stage_id: int, required_ids: str = ""):
         if not _is_admin(interaction.user.id):
@@ -313,7 +316,7 @@ class StageCog(commands.Cog):
                 return
         await interaction.followup.send(f"關卡 `{stage.name}` 的前置依賴已更新為：`{requires or '無'}`", ephemeral=True)
 
-    @admin_group.command(name="add-problem", description="在關卡末尾新增一題")
+    @_admin_group.command(name="add-problem", description="在關卡末尾新增一題")
     @app_commands.describe(
         stage_id="關卡 ID",
         url="題目連結",
@@ -345,7 +348,7 @@ class StageCog(commands.Cog):
                 return
         await interaction.followup.send(f"題目「**{title}**」已加入關卡「{stage.name}」（目前共 {len(stage.problems)} 題）。", ephemeral=True)
 
-    @admin_group.command(name="remove-problem", description="移除關卡中的某題（依編號，從 0 開始）")
+    @_admin_group.command(name="remove-problem", description="移除關卡中的某題（依編號，從 0 開始）")
     @app_commands.describe(stage_id="關卡 ID", problem_index="題目編號（0-indexed）")
     async def admin_remove_problem(self, interaction: discord.Interaction, stage_id: int, problem_index: int):
         if not _is_admin(interaction.user.id):

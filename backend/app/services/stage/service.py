@@ -7,8 +7,8 @@ from backend.app.crud import stage_def as stage_def_crud
 from backend.app.models.stage import Stage
 from backend.app.models.user import User
 from backend.app.models.user_stage_progress import UserStageProgress
-from backend.app.services.leetcode.client import LeetCodeService
 from backend.app.services.stage.graph import StageGraph
+from backend.app.services.stage.verifiers.base import PlatformVerifier
 
 
 class AlreadyEnrolledError(ValueError):
@@ -23,8 +23,12 @@ class NotEnrolledError(ValueError):
     pass
 
 
-class NoLeetCodeAccountError(ValueError):
-    pass
+class NoPlatformAccountError(ValueError):
+    _labels = {"leetcode": "LeetCode", "codeforces": "Codeforces", "atcoder": "AtCoder"}
+
+    def __init__(self, platform: str):
+        label = self._labels.get(platform, platform)
+        super().__init__(f"請先用 /account link 綁定 {label} 帳號")
 
 
 @dataclass
@@ -45,13 +49,16 @@ def stage_to_dict(stage: Stage) -> dict:
     }
 
 
-def _slug_from_url(url: str) -> str:
-    return url.rstrip("/").rsplit("/", 1)[-1]
-
-
 class StageService:
-    def __init__(self, leetcode_service: LeetCodeService):
-        self.leetcode = leetcode_service
+    def __init__(self, verifiers: dict[str, PlatformVerifier]):
+        self._verifiers = verifiers
+
+    def _get_handle(self, user: User, platform: str) -> str | None:
+        return {
+            "leetcode": user.leetcode_id,
+            "codeforces": user.codeforces_id,
+            "atcoder": user.atcoder_id,
+        }.get(platform)
 
     async def _load_graph(self, session: AsyncSession) -> StageGraph:
         stages = await stage_def_crud.get_all_stages(session)
@@ -159,29 +166,28 @@ class StageService:
             )
         return result
 
-    async def available_stages(
-        self, session: AsyncSession, completed_ids: set[int], enrolled_ids: set[int]
-    ) -> list[dict]:
+    async def available_stages(self, session: AsyncSession, completed_ids: set[int], enrolled_ids: set[int]) -> list[dict]:
         graph = await self._load_graph(session)
         return graph.available_to_enroll(completed_ids, enrolled_ids)
 
     async def verify_and_advance(self, session: AsyncSession, user: User, stage_id: int) -> VerifyResult:
-        if not user.leetcode_id:
-            raise NoLeetCodeAccountError("請先用 /account link 綁定 LeetCode 帳號")
-
         progress = await stage_crud.get_progress(session, user.id, stage_id)
         if progress is None:
             raise NotEnrolledError(f"Not enrolled in stage {stage_id}")
 
         stage = await stage_def_crud.get_stage(session, stage_id)
         problem = stage.problems[progress.current_problem_index]
-        slug = _slug_from_url(problem["url"])
+        platform = problem["platform"]
 
-        solved = await self.leetcode.verify_problem_solved(
-            username=user.leetcode_id,
-            title_slug=slug,
-            after=progress.assigned_at,
-        )
+        handle = self._get_handle(user, platform)
+        if not handle:
+            raise NoPlatformAccountError(platform)
+
+        verifier = self._verifiers.get(platform)
+        if verifier is None:
+            raise ValueError(f"Unsupported platform: {platform}")
+
+        solved = await verifier.verify(handle, problem["url"], progress.assigned_at)
 
         if not solved:
             return VerifyResult(solved=False, problem_rewards={}, stage_complete=False, stage_rewards=None)

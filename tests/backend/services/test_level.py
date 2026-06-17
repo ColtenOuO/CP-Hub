@@ -1,9 +1,7 @@
-import pytest
-
 from backend.app.services.level import exp_progress, exp_to_next, level_from_exp
 
-
 # ── exp_to_next ────────────────────────────────────────────────────────────
+
 
 def test_exp_to_next_level_1():
     assert exp_to_next(1) == 100
@@ -23,6 +21,7 @@ def test_exp_to_next_increases_with_level():
 
 
 # ── level_from_exp ─────────────────────────────────────────────────────────
+
 
 def test_level_1_at_zero_exp():
     assert level_from_exp(0) == 1
@@ -62,6 +61,7 @@ def test_level_from_exp_roundtrip():
 
 
 # ── exp_progress ───────────────────────────────────────────────────────────
+
 
 def test_exp_progress_at_zero():
     current, needed, level = exp_progress(0)

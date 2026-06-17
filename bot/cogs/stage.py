@@ -1,3 +1,5 @@
+from typing import Literal
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -10,10 +12,13 @@ from backend.app.services.leetcode.client import LeetCodeService
 from backend.app.services.stage.service import (
     AlreadyEnrolledError,
     DependencyNotMetError,
-    NoLeetCodeAccountError,
+    NoPlatformAccountError,
     NotEnrolledError,
     StageService,
 )
+from backend.app.services.stage.verifiers.atcoder import AtCoderVerifier
+from backend.app.services.stage.verifiers.codeforces import CodeforcesVerifier
+from backend.app.services.stage.verifiers.leetcode import LeetCodeVerifier
 
 
 def _is_admin(discord_id: int) -> bool:
@@ -47,13 +52,13 @@ class VerifyView(discord.ui.View):
 
             try:
                 result = await self.service.verify_and_advance(session, user, self.stage_id)
-            except (NotEnrolledError, NoLeetCodeAccountError) as e:
+            except (NotEnrolledError, NoPlatformAccountError) as e:
                 await interaction.followup.send(str(e), ephemeral=True)
                 return
 
         if not result.solved:
             await interaction.followup.send(
-                "尚未在 LeetCode 上看到你的 AC 提交，請確認已成功提交後再試一次。",
+                "尚未看到你的 AC 提交，請確認已成功提交後再試一次。",
                 ephemeral=True,
             )
             return
@@ -76,7 +81,13 @@ class StageCog(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.service = StageService(LeetCodeService())
+        self.service = StageService(
+            {
+                "leetcode": LeetCodeVerifier(LeetCodeService()),
+                "codeforces": CodeforcesVerifier(),
+                "atcoder": AtCoderVerifier(),
+            }
+        )
 
     # ── User commands ──────────────────────────────────────────────────────
 
@@ -307,7 +318,7 @@ class StageCog(commands.Cog):
         stage_id="關卡 ID",
         url="題目連結",
         title="題目名稱",
-        platform="平台（leetcode / atcoder / codeforces）",
+        platform="平台",
         rewards_exp="解題 EXP 獎勵",
         rewards_coins="解題金幣獎勵",
     )
@@ -317,7 +328,7 @@ class StageCog(commands.Cog):
         stage_id: int,
         url: str,
         title: str,
-        platform: str,
+        platform: Literal["leetcode", "codeforces", "atcoder"],
         rewards_exp: int,
         rewards_coins: int,
     ):

@@ -21,6 +21,7 @@ services:
       DISCORD_TOKEN: ${DISCORD_TOKEN:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       DATABASE_URL: postgresql+asyncpg://cphub:cphub@db:5432/cphub
+      ADMIN_DISCORD_IDS: ${ADMIN_DISCORD_IDS:-}
     depends_on:
       db:
         condition: service_healthy

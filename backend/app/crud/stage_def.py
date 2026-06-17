@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from backend.app.models.stage import Stage
 
@@ -44,6 +45,7 @@ async def set_requires(session: AsyncSession, stage_id: int, requires: list[int]
     if stage is None:
         raise StageNotFoundError(f"Stage {stage_id} not found")
     stage.requires = requires
+    flag_modified(stage, "requires")
     await session.commit()
     await session.refresh(stage)
     return stage
@@ -54,6 +56,7 @@ async def add_problem(session: AsyncSession, stage_id: int, problem: dict) -> St
     if stage is None:
         raise StageNotFoundError(f"Stage {stage_id} not found")
     stage.problems = [*stage.problems, problem]
+    flag_modified(stage, "problems")
     await session.commit()
     await session.refresh(stage)
     return stage
@@ -66,6 +69,7 @@ async def remove_problem(session: AsyncSession, stage_id: int, problem_index: in
     if problem_index < 0 or problem_index >= len(stage.problems):
         raise ProblemIndexError(f"Problem index {problem_index} out of range (stage has {len(stage.problems)} problems)")
     stage.problems = [p for i, p in enumerate(stage.problems) if i != problem_index]
+    flag_modified(stage, "problems")
     await session.commit()
     await session.refresh(stage)
     return stage

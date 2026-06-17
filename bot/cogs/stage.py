@@ -269,15 +269,40 @@ class StageCog(commands.Cog):
     # ── Admin commands ─────────────────────────────────────────────────────
 
     @_admin_group.command(name="create", description="新增關卡")
-    @app_commands.describe(name="關卡名稱", rewards_exp="完成關卡 EXP 獎勵", rewards_coins="完成關卡金幣獎勵")
-    async def admin_create(self, interaction: discord.Interaction, name: str, rewards_exp: int, rewards_coins: int):
+    @app_commands.describe(
+        name="關卡名稱",
+        rewards_exp="完成關卡 EXP 獎勵",
+        rewards_coins="完成關卡金幣獎勵",
+        required_ids="前置關卡 ID，以逗號分隔（選填）",
+    )
+    async def admin_create(
+        self,
+        interaction: discord.Interaction,
+        name: str,
+        rewards_exp: int,
+        rewards_coins: int,
+        required_ids: str = "",
+    ):
         if not _is_admin(interaction.user.id):
             await interaction.response.send_message("你沒有權限執行此指令。", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=True)
+        requires = [int(x.strip()) for x in required_ids.split(",") if x.strip()]
         async with AsyncSessionLocal() as session:
             stage = await stage_def_crud.create_stage(session, name, rewards_exp, rewards_coins)
-        await interaction.followup.send(f"關卡「**{stage.name}**」建立成功（ID: `{stage.id}`）。", ephemeral=True)
+            if requires:
+                from backend.app.services.stage.graph import CyclicDependencyError, StageGraph
+
+                await stage_def_crud.set_requires(session, stage.id, requires)
+                try:
+                    all_stages = await self.service.get_all_stages(session)
+                    StageGraph(all_stages)
+                except CyclicDependencyError as e:
+                    await stage_def_crud.set_requires(session, stage.id, [])
+                    await interaction.followup.send(f"關卡已建立但依賴設定失敗（形成循環）：{e}", ephemeral=True)
+                    return
+        req_text = f"，前置關卡：`{requires}`" if requires else ""
+        await interaction.followup.send(f"關卡「**{stage.name}**」建立成功（ID: `{stage.id}`）{req_text}。", ephemeral=True)
 
     @_admin_group.command(name="delete", description="刪除關卡")
     @app_commands.describe(stage_id="要刪除的關卡 ID")

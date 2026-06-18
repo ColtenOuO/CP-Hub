@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import discord
 from discord import app_commands
@@ -16,22 +17,51 @@ logger = logging.getLogger(__name__)
 
 SYNC_INTERVAL_MINUTES = 5
 
+MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
+
+BOARD_IMAGES = {
+    "level": "static/images/trophy.png",
+    "leetcode": "static/images/LeetCode_logo_black.png",
+    "codeforces": "static/images/codeforces.jpg",
+}
+
 
 def _is_admin(discord_id: int) -> bool:
     return discord_id in settings.admin_discord_ids
+
+
+def _format_board_description(entries: list[tuple[str, str]]) -> str:
+    """Renders the top 3 entries as large headings (medal + name) and the rest as a plain numbered list."""
+    podium, rest = entries[:3], entries[3:]
+
+    podium_block = "\n\n".join(f"## {MEDALS[rank]}　{name}\n{value}" for rank, (name, value) in enumerate(podium, start=1))
+    rest_block = "\n".join(f"**{rank}.** {name} — {value}" for rank, (name, value) in enumerate(rest, start=4))
+
+    if not rest_block:
+        return podium_block
+    if not podium_block:
+        return rest_block
+    return f"{podium_block}\n\n────────────────\n{rest_block}"
+
+
+def _attach_board_image(embed: discord.Embed, board: str) -> discord.File:
+    path = BOARD_IMAGES[board]
+    filename = Path(path).name
+    embed.set_thumbnail(url=f"attachment://{filename}")
+    return discord.File(path, filename=filename)
 
 
 async def _build_level_embed() -> discord.Embed:
     async with AsyncSessionLocal() as session:
         users = await get_top_by_level(session, limit=10)
 
-    embed = discord.Embed(title="🏆 等級排行榜", color=discord.Color.gold())
+    embed = discord.Embed(title="等級排行榜", color=discord.Color.gold())
     if not users:
         embed.description = "目前還沒有任何使用者資料。"
         return embed
 
-    lines = [f"**#{i}** {user.username} — Lv.{user.stats.level}（{user.stats.coins} 金幣）" for i, user in enumerate(users, start=1)]
-    embed.description = "\n".join(lines)
+    entries = [(user.username, f"Lv.{user.stats.level}（{user.stats.coins} 金幣）") for user in users]
+    embed.description = _format_board_description(entries)
     return embed
 
 
@@ -39,16 +69,16 @@ async def _build_leetcode_embed() -> discord.Embed:
     async with AsyncSessionLocal() as session:
         rows = await get_top_by_leetcode(session, limit=10)
 
-    embed = discord.Embed(title="🏆 LeetCode 排行榜", color=discord.Color.orange())
+    embed = discord.Embed(title="LeetCode 排行榜", color=discord.Color.orange())
     if not rows:
         embed.description = "目前還沒有任何已同步的 LeetCode 資料。"
         return embed
 
-    lines = []
-    for i, (user, cache) in enumerate(rows, start=1):
+    entries = []
+    for user, cache in rows:
         total = cache.leetcode_easy + cache.leetcode_medium + cache.leetcode_hard
-        lines.append(f"**#{i}** {user.username} — {total} 題（E:{cache.leetcode_easy} M:{cache.leetcode_medium} H:{cache.leetcode_hard}）")
-    embed.description = "\n".join(lines)
+        entries.append((user.username, f"共 {total} 題（E:{cache.leetcode_easy} M:{cache.leetcode_medium} H:{cache.leetcode_hard}）"))
+    embed.description = _format_board_description(entries)
     embed.set_footer(text="資料每 5 分鐘自動同步一次")
     return embed
 
@@ -57,13 +87,13 @@ async def _build_codeforces_embed() -> discord.Embed:
     async with AsyncSessionLocal() as session:
         rows = await get_top_by_codeforces(session, limit=10)
 
-    embed = discord.Embed(title="🏆 Codeforces 排行榜", color=discord.Color.blue())
+    embed = discord.Embed(title="Codeforces 排行榜", color=discord.Color.blue())
     if not rows:
         embed.description = "目前還沒有任何已同步的 Codeforces 資料。"
         return embed
 
-    lines = [f"**#{i}** {user.username} — {cache.codeforces_solved} 題" for i, (user, cache) in enumerate(rows, start=1)]
-    embed.description = "\n".join(lines)
+    entries = [(user.username, f"{cache.codeforces_solved} 題") for user, cache in rows]
+    embed.description = _format_board_description(entries)
     embed.set_footer(text="資料每 5 分鐘自動同步一次")
     return embed
 
@@ -73,6 +103,12 @@ _BOARD_BUILDERS = {
     "leetcode": _build_leetcode_embed,
     "codeforces": _build_codeforces_embed,
 }
+
+
+async def _build_board(board: str) -> tuple[discord.Embed, discord.File]:
+    embed = await _BOARD_BUILDERS[board]()
+    file = _attach_board_image(embed, board)
+    return embed, file
 
 
 class LeaderboardView(discord.ui.View):
@@ -89,8 +125,8 @@ class LeaderboardView(discord.ui.View):
     async def _switch(self, interaction: discord.Interaction, board: str):
         self.current = board
         self._sync_button_styles()
-        embed = await _BOARD_BUILDERS[board]()
-        await interaction.response.edit_message(embed=embed, view=self)
+        embed, file = await _build_board(board)
+        await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
 
     @discord.ui.button(label="等級榜", custom_id="level", style=discord.ButtonStyle.primary)
     async def level_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -134,8 +170,8 @@ class LeaderboardCog(commands.Cog):
     @app_commands.command(name="leaderboard", description="查看伺服器排行榜")
     async def leaderboard(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        embed = await _build_level_embed()
-        await interaction.followup.send(embed=embed, view=LeaderboardView())
+        embed, file = await _build_board("level")
+        await interaction.followup.send(embed=embed, file=file, view=LeaderboardView())
 
     @app_commands.command(name="rank", description="查看你目前的排名狀態")
     async def rank(self, interaction: discord.Interaction):

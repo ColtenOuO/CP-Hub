@@ -56,8 +56,8 @@ jobs:
 
       - name: SSH Deploy
         env:
-          CF_Access_Client_Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_Access_Client_Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
             "cd /home/colten/CP-Hub && git pull origin main && docker compose up --build -d"

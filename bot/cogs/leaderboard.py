@@ -7,8 +7,8 @@ from discord.ext import commands, tasks
 
 from backend.app.core.config import settings
 from backend.app.core.db import AsyncSessionLocal
-from backend.app.crud.platform_stats import get_cache_by_user_id, get_top_by_codeforces, get_top_by_leetcode
-from backend.app.crud.user import get_top_by_level, get_user_by_discord_id
+from backend.app.crud.platform_stats import get_top_by_codeforces, get_top_by_leetcode
+from backend.app.crud.user import get_top_by_coins, get_top_by_level
 from backend.app.services.codeforces.client import CodeforcesService
 from backend.app.services.leetcode.client import LeetCodeService
 from backend.app.services.sync.leaderboard_sync import LeaderboardSyncService
@@ -44,8 +44,10 @@ def _format_board_description(entries: list[tuple[str, str]]) -> str:
     return f"{podium_block}\n\n────────────────\n{rest_block}"
 
 
-def _attach_board_image(embed: discord.Embed, board: str) -> discord.File:
-    path = BOARD_IMAGES[board]
+def _attach_board_image(embed: discord.Embed, board: str) -> discord.File | None:
+    path = BOARD_IMAGES.get(board)
+    if path is None:
+        return None
     filename = Path(path).name
     embed.set_thumbnail(url=f"attachment://{filename}")
     return discord.File(path, filename=filename)
@@ -83,6 +85,20 @@ async def _build_leetcode_embed() -> discord.Embed:
     return embed
 
 
+async def _build_coins_embed() -> discord.Embed:
+    async with AsyncSessionLocal() as session:
+        users = await get_top_by_coins(session, limit=10)
+
+    embed = discord.Embed(title="💰 金幣排行榜", color=discord.Color.yellow())
+    if not users:
+        embed.description = "目前還沒有任何使用者資料。"
+        return embed
+
+    entries = [(user.username, f"{user.stats.coins} 金幣（Lv.{user.stats.level}）") for user in users]
+    embed.description = _format_board_description(entries)
+    return embed
+
+
 async def _build_codeforces_embed() -> discord.Embed:
     async with AsyncSessionLocal() as session:
         rows = await get_top_by_codeforces(session, limit=10)
@@ -100,12 +116,13 @@ async def _build_codeforces_embed() -> discord.Embed:
 
 _BOARD_BUILDERS = {
     "level": _build_level_embed,
+    "coins": _build_coins_embed,
     "leetcode": _build_leetcode_embed,
     "codeforces": _build_codeforces_embed,
 }
 
 
-async def _build_board(board: str) -> tuple[discord.Embed, discord.File]:
+async def _build_board(board: str) -> tuple[discord.Embed, discord.File | None]:
     embed = await _BOARD_BUILDERS[board]()
     file = _attach_board_image(embed, board)
     return embed, file
@@ -126,11 +143,16 @@ class LeaderboardView(discord.ui.View):
         self.current = board
         self._sync_button_styles()
         embed, file = await _build_board(board)
-        await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
+        attachments = [file] if file is not None else []
+        await interaction.response.edit_message(embed=embed, attachments=attachments, view=self)
 
     @discord.ui.button(label="等級榜", custom_id="level", style=discord.ButtonStyle.primary)
     async def level_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch(interaction, "level")
+
+    @discord.ui.button(label="金幣榜", custom_id="coins", style=discord.ButtonStyle.secondary)
+    async def coins_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._switch(interaction, "coins")
 
     @discord.ui.button(label="LeetCode 榜", custom_id="leetcode", style=discord.ButtonStyle.secondary)
     async def leetcode_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -171,46 +193,10 @@ class LeaderboardCog(commands.Cog):
     async def leaderboard(self, interaction: discord.Interaction):
         await interaction.response.defer()
         embed, file = await _build_board("level")
-        await interaction.followup.send(embed=embed, file=file, view=LeaderboardView())
-
-    @app_commands.command(name="rank", description="查看你目前的排名狀態")
-    async def rank(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        async with AsyncSessionLocal() as session:
-            user = await get_user_by_discord_id(session, interaction.user.id)
-            if user is None:
-                await interaction.followup.send("尚未建立帳號資料，請先使用 `/link leetcode <username>` 連結帳號。")
-                return
-
-            cache = await get_cache_by_user_id(session, user.id)
-            level = user.stats.level
-            coins = user.stats.coins
-            leetcode_id = user.leetcode_id
-            codeforces_id = user.codeforces_id
-
-        embed = discord.Embed(title=f"{interaction.user.display_name} 的排名狀態", color=discord.Color.green())
-        embed.add_field(name="等級", value=str(level), inline=True)
-        embed.add_field(name="金幣", value=str(coins), inline=True)
-        embed.add_field(name="​", value="​", inline=True)
-
-        if leetcode_id is None:
-            leetcode_value = "未連結"
-        elif cache is None or cache.leetcode_easy is None:
-            leetcode_value = "已連結，等待下次同步"
+        if file is not None:
+            await interaction.followup.send(embed=embed, file=file, view=LeaderboardView())
         else:
-            total = cache.leetcode_easy + cache.leetcode_medium + cache.leetcode_hard
-            leetcode_value = f"共 {total} 題\nEasy: {cache.leetcode_easy}\nMedium: {cache.leetcode_medium}\nHard: {cache.leetcode_hard}"
-        embed.add_field(name="LeetCode", value=leetcode_value, inline=True)
-
-        if codeforces_id is None:
-            codeforces_value = "未連結"
-        elif cache is None or cache.codeforces_solved is None:
-            codeforces_value = "已連結，等待下次同步"
-        else:
-            codeforces_value = f"{cache.codeforces_solved} 題"
-        embed.add_field(name="Codeforces", value=codeforces_value, inline=True)
-
-        await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, view=LeaderboardView())
 
     @admin_group.command(name="sync", description="手動觸發一次排行榜資料同步")
     async def admin_sync(self, interaction: discord.Interaction):

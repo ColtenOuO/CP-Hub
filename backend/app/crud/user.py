@@ -30,6 +30,13 @@ async def get_top_by_level(session: AsyncSession, limit: int = 10) -> list[User]
     return list(result.scalars().all())
 
 
+async def get_top_by_coins(session: AsyncSession, limit: int = 10) -> list[User]:
+    result = await session.execute(
+        select(User).join(UserStats, UserStats.user_id == User.id).options(selectinload(User.stats)).order_by(UserStats.coins.desc()).limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def upsert_account_links(
     session: AsyncSession,
     discord_id: int,

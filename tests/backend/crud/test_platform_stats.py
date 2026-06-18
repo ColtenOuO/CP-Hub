@@ -9,7 +9,7 @@ from backend.app.crud.platform_stats import (
     upsert_codeforces_stats,
     upsert_leetcode_stats,
 )
-from backend.app.crud.user import get_top_by_level, get_user_by_discord_id, upsert_account_links
+from backend.app.crud.user import get_top_by_coins, get_top_by_level, get_user_by_discord_id, upsert_account_links
 
 DISCORD_ID_A = 900000000000000011
 DISCORD_ID_B = 900000000000000012
@@ -132,6 +132,28 @@ async def test_get_top_by_level_orders_by_level_then_exp():
 
     async with AsyncSessionLocal() as session:
         top = await get_top_by_level(session, limit=10)
+
+    top_usernames = [user.username for user in top]
+    assert top_usernames.index("test_platform_b") < top_usernames.index("test_platform_a")
+
+
+@pytest.mark.asyncio
+async def test_get_top_by_coins_orders_by_coins_desc():
+    # Use an implausibly high coin amount so these two synthetic users sort above any
+    # real users already in this shared dev database, keeping them within the limit.
+    async with AsyncSessionLocal() as session:
+        await upsert_account_links(session, discord_id=DISCORD_ID_A, username="test_platform_a")
+        await upsert_account_links(session, discord_id=DISCORD_ID_B, username="test_platform_b")
+
+    async with AsyncSessionLocal() as session:
+        user_a = await get_user_by_discord_id(session, DISCORD_ID_A)
+        user_b = await get_user_by_discord_id(session, DISCORD_ID_B)
+        user_a.stats.coins = 999999
+        user_b.stats.coins = 9999999
+        await session.commit()
+
+    async with AsyncSessionLocal() as session:
+        top = await get_top_by_coins(session, limit=10)
 
     top_usernames = [user.username for user in top]
     assert top_usernames.index("test_platform_b") < top_usernames.index("test_platform_a")

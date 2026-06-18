@@ -5,7 +5,10 @@ from discord import app_commands
 from discord.ext import commands
 
 from backend.app.core.db import AsyncSessionLocal
+from backend.app.crud.platform_stats import get_cache_by_user_id
+from backend.app.crud.stage import get_all_progress
 from backend.app.crud.user import get_user_by_discord_id
+from backend.app.models.platform_stats_cache import PlatformStatsCache
 from backend.app.services.atcoder.client import AtCoderService
 from backend.app.services.codeforces.client import CodeforcesService
 from backend.app.services.leetcode.client import LeetCodeService
@@ -37,9 +40,14 @@ class Profile(commands.Cog):
             codeforces_id = user.codeforces_id
             atcoder_id = user.atcoder_id
 
+            cache = await get_cache_by_user_id(session, user.id)
+            progress = await get_all_progress(session, user.id)
+
+        completed_stages = sum(1 for p in progress if p.is_completed)
+
         leetcode_field, codeforces_field, atcoder_field = await asyncio.gather(
             self._leetcode_field(leetcode_id),
-            self._codeforces_field(codeforces_id),
+            self._codeforces_field(codeforces_id, cache),
             self._atcoder_field(atcoder_id),
         )
 
@@ -52,7 +60,7 @@ class Profile(commands.Cog):
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
         embed.add_field(name="等級", value=str(level), inline=True)
         embed.add_field(name="金幣", value=str(coins), inline=True)
-        embed.add_field(name="​", value="​", inline=True)
+        embed.add_field(name="完成關卡數量", value=str(completed_stages), inline=True)
         embed.add_field(name="LeetCode", value=leetcode_field, inline=True)
         embed.add_field(name="Codeforces", value=codeforces_field, inline=True)
         embed.add_field(name="AtCoder", value=atcoder_field, inline=True)
@@ -76,18 +84,21 @@ class Profile(commands.Cog):
         if stats is None:
             return "讀取失敗"
 
-        return f"Easy: {stats['easy']}\nMedium: {stats['medium']}\nHard: {stats['hard']}"
+        total = stats["easy"] + stats["medium"] + stats["hard"]
+        return f"共 {total} 題\nEasy: {stats['easy']}\nMedium: {stats['medium']}\nHard: {stats['hard']}"
 
-    async def _codeforces_field(self, codeforces_id: str | None) -> str:
+    async def _codeforces_field(self, codeforces_id: str | None, cache: PlatformStatsCache | None) -> str:
         if codeforces_id is None:
             return "未連結"
 
         try:
             rating = await self.codeforces_service.get_rating(codeforces_id)
+            rating_text = str(rating) if rating is not None else "Unrated"
         except RuntimeError:
-            return "讀取失敗"
+            rating_text = "讀取失敗"
 
-        return str(rating) if rating is not None else "Unrated"
+        solved_text = f"{cache.codeforces_solved} 題" if cache is not None and cache.codeforces_solved is not None else "尚未同步"
+        return f"Rating: {rating_text}\n解題數: {solved_text}"
 
     async def _atcoder_field(self, atcoder_id: str | None) -> str:
         if atcoder_id is None:

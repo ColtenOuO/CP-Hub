@@ -19,12 +19,13 @@ class LeetCodeService:
             "content-type": "application/json",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         }
-
-    async def get_problem_list(self, tags: List[str], difficulty: str, limit: int = 50) -> List[Dict[str, Any]]:
+    
+    async def get_problem_list(self, tags: List[str], difficulty: str, limit: int = 100, skip: int = 0) -> List[Dict[str, Any]]:
         """Fetches a list of LeetCode problems based on specified tags and difficulty."""
 
         variables = {
             "categorySlug": "",
+            "skip": skip,
             "limit": limit,
             "filters": {
                 "filterCombineType": "ALL",
@@ -49,10 +50,8 @@ class LeetCodeService:
                 )
 
                 if response.status_code != 200:
-                    raise httpx.HTTPStatusError(
-                        f"LeetCode server returned error: {response.status_code}",
-                        request=response.request,
-                        response=response,
+                    raise RuntimeError(
+                        f"LeetCode server returned error {response.status_code}: {response.text}"
                     )
 
                 data = response.json()
@@ -161,9 +160,29 @@ class LeetCodeService:
             except httpx.RequestError as exc:
                 raise RuntimeError(f"Error occurred while verifying LeetCode submission: {exc}")
 
-    async def draw_random_problem(self, tags: List[str], difficulty: str) -> Dict[str, Any]:
+    async def draw_random_problem(self, tags: List[str], difficulty: str, choosing_window_size: int = 100, max_skip: int = 3000,) -> Dict[str, Any]:
         """Draws a random LeetCode problem based on specified tags and difficulty, ensuring it's free to access."""
-        questions = await self.get_problem_list(tags, difficulty)
+        for _ in range(5):
+            skip = random.randint(0, max_skip)
+
+            questions = await self.get_problem_list(
+                tags=tags,
+                difficulty=difficulty,
+                limit=choosing_window_size,
+                skip=skip,
+            )
+
+            if questions:
+                chosen_problem = random.choice(questions)
+                chosen_problem["url"] = f"https://leetcode.com/problems/{chosen_problem['titleSlug']}/"
+                return chosen_problem
+
+        questions = await self.get_problem_list(
+            tags=tags,
+            difficulty=difficulty,
+            limit=choosing_window_size,
+            skip=0,
+        )
 
         if not questions:
             raise ValueError(f"No free problems found for tags: {tags} and difficulty: {difficulty}")

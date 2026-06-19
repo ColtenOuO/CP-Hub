@@ -279,6 +279,33 @@ A cog should usually receive a command, call a service, and return a response.
 
 ---
 
+## Pre-commit Hooks
+
+This project provides a pre-commit configuration to run Ruff formatting and lint checks before each commit.
+
+To enable it locally, run:
+
+```bash
+uvx pre-commit install
+```
+
+To run all hooks manually:
+
+```bash
+uvx pre-commit run --all-files
+```
+
+The hooks currently run:
+
+```bash
+uvx ruff format .
+uvx ruff check .
+```
+
+Installing the hooks is recommended so formatting and lint issues can be caught before pushing and waiting for CI to fail.
+
+---
+
 ## Quick Reference
 
 | Task                                   | Where to Modify                  |

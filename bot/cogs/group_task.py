@@ -78,14 +78,16 @@ def _build_status_embed(task: GroupTask) -> discord.Embed:
     for difficulty in ("easy", "medium", "hard"):
         lines = []
         for problem in _sorted_problems(task, difficulty):
+            problem_link = f"[{problem.title}]({problem.url})"
+
             if problem.is_completed:
                 claimant = problem.completed_by_user.username if problem.completed_by_user else "?"
-                lines.append(f"✅ {problem.code} {problem.title} — {claimant}")
+                lines.append(f"✅ {problem.code} {problem_link} — {claimant}")
             elif problem.claimed_by is not None:
                 claimant = problem.claimed_by_user.username if problem.claimed_by_user else "?"
-                lines.append(f"🔵 {problem.code} {problem.title} — {claimant}（認領中）")
+                lines.append(f"🔵 {problem.code} {problem_link} — {claimant}（認領中）")
             else:
-                lines.append(f"⬜ {problem.code} {problem.title} — 尚無人認領")
+                lines.append(f"⬜ {problem.code} {problem_link} — 尚無人認領")
         embed.add_field(name=DIFFICULTY_LABEL[difficulty], value="\n".join(lines), inline=False)
     return embed
 

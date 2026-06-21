@@ -202,6 +202,42 @@ async def test_finalize_completed_awards_bonus_once(cleanup):
 
 
 @pytest.mark.asyncio
+async def test_finalize_in_same_session_as_completing_verify(cleanup):
+    """Regression test: finalize() used to crash with AttributeError on completed_by_user
+    when called in the same session as the verify() that completed the last problem,
+    because the bulk UPDATE in mark_completed only syncs column attributes (is_completed,
+    completed_by) onto identity-mapped objects, not the completed_by_user relationship."""
+    all_codes = [f"{prefix}{i}" for prefix in ("E", "M", "H") for i in range(1, 11)]
+    solved_slugs = {f"{d}-problem-{i}" for d in ("easy", "medium", "hard") for i in range(1, 11)}
+    service = GroupTaskService(StubLeetCodeService(solved_slugs=solved_slugs))
+
+    async with AsyncSessionLocal() as session:
+        await upsert_account_links(session, discord_id=DISCORD_ID_A, username="grouptask_svc_same_session", leetcode_id="solver_same")
+
+    task = await _create_task(service, cleanup, reward_exp=500, reward_coins=200)
+
+    async with AsyncSessionLocal() as session:
+        task = await get_task_with_problems(session, task.id)
+        user = await get_user_by_discord_id(session, DISCORD_ID_A)
+        await service.claim(session, task, user, all_codes)
+
+    async with AsyncSessionLocal() as session:
+        task = await get_task_with_problems(session, task.id)
+        user = await get_user_by_discord_id(session, DISCORD_ID_A)
+        verify_result = await service.verify(session, task, user, all_codes)
+        assert verify_result.task_completed is True
+
+        recap = await service.finalize(session, task.id, "completed")
+
+    assert recap is not None
+    assert recap.completed_problems == 30
+    assert recap.entries[0].user.id == user.id
+    assert recap.entries[0].total == 30
+    assert recap.bonus_exp == 500
+    assert recap.bonus_coins == 200
+
+
+@pytest.mark.asyncio
 async def test_finalize_expired_does_not_award_bonus(cleanup):
     service = GroupTaskService(StubLeetCodeService(solved_slugs={"easy-problem-1"}))
 

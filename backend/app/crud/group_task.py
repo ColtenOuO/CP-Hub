@@ -22,7 +22,12 @@ async def get_active_task(session: AsyncSession) -> GroupTask | None:
 
 
 async def get_task_with_problems(session: AsyncSession, task_id: uuid.UUID) -> GroupTask | None:
-    result = await session.execute(select(GroupTask).where(GroupTask.id == task_id).options(*_PROBLEM_EAGER_LOAD))
+    result = await session.execute(
+        select(GroupTask)
+        .where(GroupTask.id == task_id)
+        .options(*_PROBLEM_EAGER_LOAD)
+        .execution_options(populate_existing=True)
+    )
     return result.scalar_one_or_none()
 
 

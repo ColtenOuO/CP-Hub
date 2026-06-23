@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock
+
 import pytest
 
 from backend.app.services.leetcode.client import LeetCodeService
@@ -71,3 +73,30 @@ async def test_get_solved_stats_for_nonexistent_user(leetcode_service):
     stats = await leetcode_service.get_solved_stats("this-user-definitely-does-not-exist-12345")
 
     assert stats is None
+
+
+@pytest.mark.asyncio
+async def test_draw_random_problems_not_enough_free_problems(leetcode_service, monkeypatch):
+    leetcode_service.get_problem_total = AsyncMock(return_value=10)
+
+    leetcode_service.get_problem_list = AsyncMock(
+        return_value=[
+            {
+                "questionFrontendId": "1",
+                "title": "Two Sum",
+                "titleSlug": "two-sum",
+                "isPaidOnly": False,
+            }
+        ]
+    )
+
+    with pytest.raises(ValueError) as exc:
+        await leetcode_service.draw_random_problems(
+            tags=["array"],
+            difficulty="EASY",
+            count=2,
+            choosing_window_size=5,
+            max_attempts=1,
+        )
+
+    assert "Only found 1 free problems" in str(exc.value)

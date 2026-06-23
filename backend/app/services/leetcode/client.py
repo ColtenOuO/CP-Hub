@@ -66,21 +66,25 @@ class LeetCodeService:
     async def get_problem_list(self, tags: List[str], difficulty: str, limit: int = 100, skip: int = 0) -> List[Dict[str, Any]]:
         """Fetches a list of LeetCode problems based on specified tags and difficulty."""
 
+        filters = {
+            "filterCombineType": "ALL",
+            "difficultyFilter": {
+                "difficulties": [difficulty.upper()],
+                "operator": "IS",
+            },
+        }
+
+        if tags:
+            filters["topicFilter"] = {
+                "topicSlugs": tags,
+                "operator": "IS",
+            }
+
         variables = {
             "categorySlug": "",
             "skip": skip,
             "limit": limit,
-            "filters": {
-                "filterCombineType": "ALL",
-                "difficultyFilter": {
-                    "difficulties": [difficulty.upper()],
-                    "operator": "IS",
-                },
-                "topicFilter": {
-                    "topicSlugs": tags,
-                    "operator": "IS",
-                },
-            },
+            "filters": filters,
         }
 
         async with httpx.AsyncClient() as client:
@@ -201,44 +205,82 @@ class LeetCodeService:
             except httpx.RequestError as exc:
                 raise RuntimeError(f"Error occurred while verifying LeetCode submission: {exc}")
 
-    async def draw_random_problem(
+    async def draw_random_problems(
         self,
-        tags: List[str],
         difficulty: str,
+        count: int = 1,
+        tags: List[str] | None = None,
         choosing_window_size: int = 100,
-        max_skip: int = 3000,
-    ) -> Dict[str, Any]:
-        """Draws a random LeetCode problem based on specified tags and difficulty, ensuring it's free to access."""
+        take_per_window: int = 1,
+        max_attempts: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """Draws up to `count` unique free LeetCode problems based on tags and difficulty."""
+
+        tags = tags or []
+
         total = await self.get_problem_total(tags, difficulty)
 
         if total == 0:
             raise ValueError(f"No problems found for tags: {tags} and difficulty: {difficulty}")
 
-        window_size = min(choosing_window_size, total)
+        window_size = min(max(choosing_window_size, 1), total)
         max_skip = max(total - window_size, 0)
-        skip = random.randint(0, max_skip)
 
-        questions = await self.get_problem_list(
-            tags=tags,
-            difficulty=difficulty,
-            limit=window_size,
-            skip=skip,
-        )
+        chosen: list[Dict[str, Any]] = []
+        seen_slugs: set[str] = set()
+        attempts = 0
 
-        if not questions:
-            raise ValueError(f"No free problems found for tags: {tags} and difficulty: {difficulty}")
+        while len(chosen) < count and attempts < max_attempts:
+            attempts += 1
+            skip = random.randint(0, max_skip)
 
-        chosen_problem = random.choice(questions)
-        chosen_problem["url"] = f"https://leetcode.com/problems/{chosen_problem['titleSlug']}/"
+            questions = await self.get_problem_list(
+                tags=tags,
+                difficulty=difficulty,
+                limit=window_size,
+                skip=skip,
+            )
 
-        return chosen_problem
+            if not questions:
+                continue
 
-    async def draw_problems(self, difficulty: str, count: int) -> List[Dict[str, Any]]:
-        """Draws up to `count` unique free LeetCode problems of the given difficulty, no tag filter."""
-        questions = await self.get_problem_list(tags=[], difficulty=difficulty)
-        chosen = random.sample(questions, min(count, len(questions)))
+            random.shuffle(questions)
 
-        for question in chosen:
-            question["url"] = f"https://leetcode.com/problems/{question['titleSlug']}/"
+            picked_from_this_window = 0
+
+            for problem in questions:
+                slug = problem["titleSlug"]
+
+                if slug in seen_slugs:
+                    continue
+
+                problem["url"] = f"https://leetcode.com/problems/{slug}/"
+                chosen.append(problem)
+                seen_slugs.add(slug)
+
+                picked_from_this_window += 1
+
+                if len(chosen) >= count or picked_from_this_window >= take_per_window:
+                    break
+
+        if len(chosen) < count:
+            raise ValueError(f"Only found {len(chosen)} free problems for tags: {tags} and difficulty: {difficulty}")
 
         return chosen
+
+    async def draw_random_problem(
+        self,
+        difficulty: str,
+        tags: List[str] | None = None,
+        choosing_window_size: int = 100,
+    ) -> Dict[str, Any]:
+        """Draws one random free LeetCode problem."""
+
+        problems = await self.draw_random_problems(
+            tags=tags,
+            difficulty=difficulty,
+            count=1,
+            choosing_window_size=choosing_window_size,
+        )
+
+        return problems[0]

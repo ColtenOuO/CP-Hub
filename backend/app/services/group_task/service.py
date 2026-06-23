@@ -92,7 +92,7 @@ class GroupTaskService:
 
         problems: list[dict] = []
         for difficulty, prefix in (("EASY", "E"), ("MEDIUM", "M"), ("HARD", "H")):
-            drawn = await self._leetcode.draw_problems(difficulty, 10)
+            drawn = await self._leetcode.draw_random_problems(difficulty=difficulty, count=10, choosing_window_size=100, take_per_window=1)
             for index, question in enumerate(drawn, start=1):
                 problems.append(
                     {

@@ -25,6 +25,17 @@ class StubLeetCodeService:
             for i in range(1, count + 1)
         ]
 
+    async def draw_random_problems(
+        self,
+        difficulty,
+        count=1,
+        tags=None,
+        choosing_window_size=100,
+        take_per_window=1,
+        max_attempts=30,
+    ):
+        return await self.draw_problems(difficulty=difficulty, count=count)
+
     async def verify_problem_solved(self, handle, slug, after):
         return slug in self.solved_slugs
 

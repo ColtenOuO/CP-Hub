@@ -10,4 +10,6 @@ RUN uv sync --frozen --no-dev
 
 RUN chmod +x entrypoint.sh
 
+EXPOSE 8000
+
 CMD ["./entrypoint.sh"]

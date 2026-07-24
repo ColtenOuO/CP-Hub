@@ -8,10 +8,12 @@ dependencies = [
     "alembic>=1.18.4",
     "asyncpg>=0.31.0",
     "discord-py>=2.7.1",
+    "fastapi>=0.121.0",
     "google-genai>=2.8.0",
     "pydantic-settings>=2.14.1",
     "python-dotenv>=1.2.2",
     "sqlalchemy[asyncio]>=2.0.50",
+    "uvicorn[standard]>=0.41.0",
 ]
 
 [tool.ruff]

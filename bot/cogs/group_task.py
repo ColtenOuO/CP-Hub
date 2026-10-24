@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 TASK_TIMEZONE = timezone(timedelta(hours=8))
 EXPIRY_CHECK_INTERVAL_MINUTES = 1
+EMBED_TOTAL_LIMIT = 6000
 
 DIFFICULTY_COLOR = {"easy": discord.Color.green(), "medium": discord.Color.orange(), "hard": discord.Color.red()}
 DIFFICULTY_LABEL = {"easy": "Easy", "medium": "Medium", "hard": "Hard"}
@@ -74,8 +75,9 @@ def _build_problem_list_embed(task: GroupTask, difficulty: str) -> discord.Embed
     return embed
 
 
-def _build_status_embed(task: GroupTask) -> discord.Embed:
-    embed = discord.Embed(title="群組任務目前狀態", color=discord.Color.blue())
+def _build_status_embeds(task: GroupTask) -> list[discord.Embed]:
+    # One embed per difficulty: the linked problem list easily exceeds the 1024-char field limit, so it goes in the description (4096).
+    embeds = []
     for difficulty in ("easy", "medium", "hard"):
         lines = []
         for problem in _sorted_problems(task, difficulty):
@@ -89,8 +91,27 @@ def _build_status_embed(task: GroupTask) -> discord.Embed:
                 lines.append(f"🔵 {problem.code} {problem_link} — {claimant}（認領中）")
             else:
                 lines.append(f"⬜ {problem.code} {problem_link} — 尚無人認領")
-        embed.add_field(name=DIFFICULTY_LABEL[difficulty], value="\n".join(lines), inline=False)
-    return embed
+        embeds.append(
+            discord.Embed(
+                title=f"群組任務目前狀態｜{DIFFICULTY_LABEL[difficulty]}",
+                description="\n".join(lines),
+                color=DIFFICULTY_COLOR[difficulty],
+            )
+        )
+    return embeds
+
+
+def _batch_embeds(embeds: list[discord.Embed]) -> list[list[discord.Embed]]:
+    """Groups embeds into messages that stay within Discord's 6000-char total per message."""
+    batches: list[list[discord.Embed]] = []
+    size = 0
+    for embed in embeds:
+        if not batches or size + len(embed) > EMBED_TOTAL_LIMIT:
+            batches.append([])
+            size = 0
+        batches[-1].append(embed)
+        size += len(embed)
+    return batches
 
 
 def _build_recap_embed(recap: RecapData) -> discord.Embed:
@@ -264,7 +285,8 @@ class GroupTaskCog(commands.Cog):
             await interaction.followup.send("目前沒有進行中的群組任務。")
             return
 
-        await interaction.followup.send(embed=_build_status_embed(task))
+        for batch in _batch_embeds(_build_status_embeds(task)):
+            await interaction.followup.send(embeds=batch)
 
     @admin_group.command(name="create", description="建立群組任務（抽 10 Easy/10 Medium/10 Hard 題）")
     @app_commands.describe(

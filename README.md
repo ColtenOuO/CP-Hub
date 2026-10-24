@@ -220,6 +220,14 @@ This directory contains project tests.
 
 New features should ideally include corresponding tests, especially for service-layer logic.
 
+Tests create and delete real rows, so they only run against a disposable database set via `TEST_DATABASE_URL` (its name must contain `test`). It is read from the environment, not `.env`, and overrides `DATABASE_URL` for the run:
+
+```bash
+TEST_DATABASE_URL=postgresql+asyncpg://cphub:cphub@localhost:5432/cphub_test uv run pytest
+```
+
+Never point it at the bot's database.
+
 ---
 
 ## Adding a New Feature
